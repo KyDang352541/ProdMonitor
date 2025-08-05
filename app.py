@@ -1,41 +1,51 @@
 import streamlit as st
 import pandas as pd
 
-# Đọc dữ liệu (giả sử bạn upload file Excel)
-uploaded_file = st.file_uploader("Upload báo cáo Excel", type=["xlsx"])
+st.set_page_config(page_title="V-Tail Tracker", layout="wide")
+
+st.title("🛠️ V-Tail Production Tracker")
+st.markdown("Theo dõi tiến độ và chi phí sản xuất cho các bộ phận V-tail.")
+
+# Tải file Excel
+uploaded_file = st.file_uploader("📤 Tải file báo cáo Excel (.xlsx)", type=["xlsx"])
+
 if uploaded_file:
-    df_tasks = pd.read_excel(uploaded_file, sheet_name='Tasks')
-    df_summary = pd.read_excel(uploaded_file, sheet_name='Summary', index_col=0)
+    try:
+        # Đọc dữ liệu từ file
+        df_tasks = pd.read_excel(uploaded_file, sheet_name="Tasks")
+        df_summary = pd.read_excel(uploaded_file, sheet_name="Summary", index_col=0)
 
-    st.title("📋 V-tail Production Report")
+        # Tổng quan chi phí
+        st.header("📊 Tổng quan chi phí")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("💰 Giá bán", f"${df_summary.loc['Total selling price', 'Value']:,.2f}")
+        col2.metric("🕒 Giờ lao động", f"{df_summary.loc['Labour hours', 'Value']}")
+        col3.metric("💵 Đơn giá giờ", f"${df_summary.loc['Labour price', 'Value']:,.2f}")
+        col4.metric("🧾 Đã chi", f"${df_summary.loc['Spent', 'Value']:,.2f}")
 
-    # Tổng hợp thông tin
-    st.subheader("🔍 Tổng quan")
-    st.write("**Tổng giá bán:**", f"${df_summary.loc['Total selling price', 'Value']}")
-    st.write("**Giờ lao động:**", df_summary.loc['Labour hours', 'Value'])
-    st.write("**Đơn giá lao động:**", f"${df_summary.loc['Labour price', 'Value']}")
-    st.write("**Đã chi:**", f"${df_summary.loc['Spent', 'Value']}")
+        total_cost = df_summary.loc['Labour hours', 'Value'] * df_summary.loc['Labour price', 'Value']
+        total_spent = total_cost + df_summary.loc['Spent', 'Value']
+        profit = df_summary.loc['Total selling price', 'Value'] - total_spent
 
-    # Tính toán chênh lệch
-    total_cost = df_summary.loc['Labour hours', 'Value'] * df_summary.loc['Labour price', 'Value']
-    total_spent = total_cost + df_summary.loc['Spent', 'Value']
-    profit = df_summary.loc['Total selling price', 'Value'] - total_spent
-    st.metric("💰 Lợi nhuận", f"${profit:,.2f}")
+        st.success(f"✅ **Lợi nhuận ước tính:** ${profit:,.2f}")
 
-    # Hiển thị công việc theo nhóm
-    st.subheader("🛠️ Tiến độ công việc")
-    for task_type in df_tasks["Type"].unique():
-        st.markdown(f"### 🔹 {task_type}")
-        df_filtered = df_tasks[df_tasks["Type"] == task_type]
-        st.dataframe(df_filtered[['No', 'Job', 'Status']], use_container_width=True)
+        # Hiển thị tiến độ công việc
+        st.header("📋 Tiến độ công việc")
+        for task_type in df_tasks["Type"].unique():
+            st.subheader(f"🔹 {task_type}")
+            df_group = df_tasks[df_tasks["Type"] == task_type].reset_index(drop=True)
+            st.dataframe(df_group[["No", "Job", "Status"]], use_container_width=True)
 
-    # Cho phép chỉnh trạng thái
-    st.subheader("✏️ Cập nhật trạng thái công việc")
-    selected_row = st.selectbox("Chọn công việc:", df_tasks['Job'])
-    new_status = st.selectbox("Cập nhật trạng thái:", ["Done", "Inprocess", "No"])
-    if st.button("Cập nhật"):
-        df_tasks.loc[df_tasks['Job'] == selected_row, 'Status'] = new_status
-        st.success("Đã cập nhật trạng thái!")
+        # Cập nhật trạng thái công việc
+        st.header("✏️ Cập nhật trạng thái công việc")
+        jobs = df_tasks["Job"].tolist()
+        selected_job = st.selectbox("Chọn công việc:", jobs)
+        new_status = st.selectbox("Trạng thái mới:", ["Done", "Inprocess", "No"])
+        if st.button("Cập nhật"):
+            df_tasks.loc[df_tasks["Job"] == selected_job, "Status"] = new_status
+            st.success(f"Đã cập nhật trạng thái của **{selected_job}** thành **{new_status}**.")
 
-    # (Tuỳ chọn) Cho phép tải xuống báo cáo
-    # (Bạn có thể dùng pandas + openpyxl hoặc reportlab/pdfkit cho bước này)
+    except Exception as e:
+        st.error(f"❌ Lỗi khi đọc file: {e}")
+else:
+    st.info("📥 Vui lòng tải file Excel để bắt đầu.")
